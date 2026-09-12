@@ -2,16 +2,43 @@
 
   <PropertyGroup>
     <TargetFramework>netstandard2.1</TargetFramework>
-	  <Description>GameBoyEmulator main assembly</Description>
-	  <Version>2.0.0</Version>
-	  <AllowUnsafeBlocks>true</AllowUnsafeBlocks>
-	  <LangVersion>latest</LangVersion>
-	  <Configurations>Debug;Release;UNITY_EDITOR</Configurations>
-	  <PackageId>WTT-KomradeKidClient</PackageId>
-	  <RootNamespace>KomradeKidClient</RootNamespace>
-  </PropertyGroup>
+	<Description>GameBoyEmulator main assembly</Description>
+	<PluginName>WTT-KomradeKidClient</PluginName>
+	<Version>2.1.0</Version>
+	<AllowUnsafeBlocks>true</AllowUnsafeBlocks>
+	<LangVersion>latest</LangVersion>
+	<Configurations>Debug;Release;UNITY_EDITOR</Configurations>
+	<RootNamespace>KomradeKidClient</RootNamespace>
+	<Authors>GrooveypenguinX</Authors>
+	<PluginGuid>com.wtt.komradekid</PluginGuid>
+	<AssemblyName>$(PluginName)</AssemblyName>
+	<AssemblyVersion>$(Version)</AssemblyVersion>
+	<FileVersion>$(Version)</FileVersion>
+	<Platforms>AnyCPU</Platforms>
+	<Nullable>enable</Nullable>
 
-  <PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
+  </PropertyGroup>
+	<Target Name="GeneratePluginConstants" BeforeTargets="CoreCompile">
+		<ItemGroup>
+			<WttPluginSource Include="namespace WTTClientCommonLib" />
+			<WttPluginSource Include="{" />
+			<WttPluginSource Include="internal static class PluginConstants" />
+			<WttPluginSource Include="{" />
+			<WttPluginSource Include="    public const string Guid = &quot;$(PluginGuid)&quot;%3B" />
+			<WttPluginSource Include="    public const string Name = &quot;$(PluginName)&quot;%3B" />
+			<WttPluginSource Include="    public const string Version = &quot;$(Version)&quot;%3B" />
+			<WttPluginSource Include="}" />
+			<WttPluginSource Include="}" />
+		</ItemGroup>
+
+		<WriteLinesToFile File="$(IntermediateOutputPath)PluginConstants.g.cs" Lines="@(WttPluginSource)" Overwrite="true" />
+
+		<ItemGroup>
+			<Compile Include="$(IntermediateOutputPath)PluginConstants.g.cs" />
+		</ItemGroup>
+	</Target>
+
+	<PropertyGroup Condition="'$(Configuration)|$(Platform)'=='Release|AnyCPU'">
     <DefineConstants>$(DefineConstants);CHEATMODE</DefineConstants>
   </PropertyGroup>
 
@@ -176,7 +203,7 @@
 
 	<ItemGroup>
 	  <PackageReference Include="Newtonsoft.Json" Version="13.0.3" />
-	  <PackageReference Include="WTT-ClientCommonLib" Version="2.0.0" />
+	  <PackageReference Include="WTT-ClientCommonLib" Version="3.0.0" />
 	</ItemGroup>
 
 	<ItemGroup>

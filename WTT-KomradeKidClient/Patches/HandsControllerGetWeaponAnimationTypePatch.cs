@@ -1,20 +1,21 @@
 ﻿#if !UNITY_EDITOR
 using EFT;
+using EFT.NextObservedPlayer;
+using GameBoyEmulator.CustomEFTData;
 using SPT.Reflection.Patching;
 using System.Reflection;
-using GameBoyEmulator.CustomEFTData;
 
 namespace GameBoyEmulator.Patches
 {
-    internal class HandsControllerClassPatch : ModulePatch
+    internal class HandsControllerGetWeaponAnimationTypePatch : ModulePatch
     {
         protected override MethodBase GetTargetMethod()
         {
-            return typeof(HandsControllerClass).GetMethod("method_49", BindingFlags.Instance | BindingFlags.Public);
+            return typeof(ObservedPlayerHandsController).GetMethod("GetWeaponAnimationType", BindingFlags.Instance | BindingFlags.Public);
         }
 
         [PatchPrefix]
-        public static bool Prefix(ref PlayerAnimator.EWeaponAnimationType __result, HandsControllerClass __instance)
+        public static bool Prefix(ref PlayerAnimator.EWeaponAnimationType __result, ObservedPlayerHandsController __instance)
         {
             if (__instance.ItemInHands is CustomUsableItem)
             {

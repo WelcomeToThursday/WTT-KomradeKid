@@ -1,8 +1,9 @@
 ﻿#if !UNITY_EDITOR
 using EFT.InventoryLogic;
+using EFT.NextObservedPlayer;
+using GameBoyEmulator.CustomEFTData;
 using SPT.Reflection.Patching;
 using System.Reflection;
-using GameBoyEmulator.CustomEFTData;
 
 namespace GameBoyEmulator.Patches
 {
@@ -10,11 +11,11 @@ namespace GameBoyEmulator.Patches
     {
         protected override MethodBase GetTargetMethod()
         {
-            return typeof(GClass2970).GetMethod("smethod_0", BindingFlags.Static | BindingFlags.Public);
+            return typeof(ObservedPlayerUsableItemController).GetMethod("GetObservedUsableItem", BindingFlags.Static | BindingFlags.Public);
         }
 
         [PatchPrefix]
-        public static bool Prefix(ref GInterface323 __result, Item item)
+        public static bool Prefix(ref IObservedUsableItem __result, Item item)
         {
             if (item is CustomUsableItem)
             {

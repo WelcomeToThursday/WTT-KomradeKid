@@ -17,7 +17,7 @@ namespace GameBoyEmulator.Patches
         }
 
         [PatchPrefix]
-        public static bool PatchPrefix(Player __instance, ref Item item, ref Callback<GInterface202> callback)
+        public static bool PatchPrefix(Player __instance, ref Item item, ref Callback<IUsableItemController> callback)
         {
             if (item is CustomUsableItem)
             {

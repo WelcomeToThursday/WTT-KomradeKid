@@ -13,7 +13,7 @@ namespace GameBoyEmulator.Patches
     {
         protected override MethodBase GetTargetMethod()
         {
-            return typeof(ClientPlayer).GetMethod(nameof(ClientPlayer.method_147));
+            return typeof(ClientPlayer).GetMethod(nameof(ClientPlayer.CG_Struct560));
         }
 
         [PatchPrefix]

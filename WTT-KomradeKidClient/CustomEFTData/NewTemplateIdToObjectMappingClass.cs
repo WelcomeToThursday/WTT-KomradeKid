@@ -1,4 +1,5 @@
 ﻿#if !UNITY_EDITOR
+using EFT.InventoryLogic;
 using System.Collections.Generic;
 
 namespace GameBoyEmulator.CustomEFTData;
@@ -11,8 +12,8 @@ public abstract class NewTemplateIdToObjectMappingClass
         new(
             "66e42bd851fa456a1ee37885", // Template ID
             typeof(CustomUsableItem),   // Item type
-            typeof(CompoundItemTemplateClass),         // Template type
-            (id, template) => new CustomUsableItem(id, (CompoundItemTemplateClass)template) // Constructor
+            typeof(CompoundItemTemplate),         // Template type
+            (id, template) => new CustomUsableItem(id, (CompoundItemTemplate)template) // Constructor
         ),
         // Add GameBoyCartridge Template
         new(

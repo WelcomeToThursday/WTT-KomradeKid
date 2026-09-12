@@ -1,127 +1,191 @@
 ﻿#if !UNITY_EDITOR
-using System;
-using System.Collections.Generic;
 using Comfort.Common;
 using EFT;
+using EFT.InventoryLogic.Operations;
+using System;
+using System.Collections.Generic;
 
 namespace GameBoyEmulator.CustomEFTData;
 
 public class CustomUsableItemController : Player.UsableItemController
 {
-    public override Dictionary<Type, OperationFactoryDelegate> GetOperationFactoryDelegates()
+    public override Dictionary<Type, Player.ItemHandsController.OperationFactoryDelegate>
+        GetOperationFactoryDelegates()
     {
-        var factoryDelegates = new Dictionary<Type, OperationFactoryDelegate>
+        return new Dictionary<Type, Player.ItemHandsController.OperationFactoryDelegate>
         {
-            { typeof(OperationOne), CreateOperationOne },
-            { typeof(OperationTwo), CreateOperationTwo },
-            { typeof(OperationThree), CreateOperationThree },
-            { typeof(OperationFour), CreateOperationFour }
+            {
+                typeof(CustomSpawnOperation),
+                CreateSpawnOperation
+            },
+            {
+                typeof(CustomIdlingOperation),
+                CreateIdlingOperation
+            },
+            {
+                typeof(CustomRemoveOperation),
+                CreateRemoveOperation
+            },
+            {
+                typeof(CustomDropBackpackOperation),
+                CreateDropBackpackOperation
+            }
         };
-        return factoryDelegates;
     }
 
-    public override void vmethod_0(Player player, WeaponPrefab weaponPrefab)
+    public override void InitializeController(Player player, WeaponPrefab weaponPrefab)
     {
-        base.vmethod_0(player, weaponPrefab);
+        base.InitializeController(player, weaponPrefab);
 
         player.ProceduralWeaponAnimation.ManualSetVariables(2f, 0f, 0f, 0f);
 
-        method_6();
+        SetUpOverlaping();
 
-        gclass2086_0.AfterGetFromPoolInit(player.ProceduralWeaponAnimation, null, player.IsYourPlayer);
+        BaseSoundPlayer soundPlayer =
+            _controllerObject.GetComponent<BaseSoundPlayer>();
 
-        BaseSoundPlayer soundPlayer = _controllerObject.GetComponent<BaseSoundPlayer>();
         if (soundPlayer != null)
         {
-            soundPlayer.Init(this, player.PlayerBones.WeaponRoot, player);
+            soundPlayer.Init(
+                this,
+                player.PlayerBones.WeaponRoot,
+                player);
         }
 
-        // Pass 'this' directly so DefaultEmulatorManager doesn't have to look it up
-        InitializeEmulator(this);
+        InitializeEmulator();
     }
-    
-    private void InitializeEmulator(CustomUsableItemController controller)
+
+    public override void StateChangedHandler(
+        EPlayerState previousState,
+        EPlayerState nextState)
     {
-        DefaultEmulatorManager manager = _controllerObject.GetComponentInChildren<DefaultEmulatorManager>();
+        // Intentionally empty only if Komrade Kid should remain aimed/held
+        // through all player-state changes.
+        //
+        // The base implementation disables aiming in states where aiming
+        // is forbidden, so use the following instead if that is desired:
+        //
+        // base.StateChangedHandler(previousState, nextState);
+    }
+
+    public override void InitiateSpawnOperation(Action callback)
+    {
+        InitiateOperation<CustomSpawnOperation>().Start(callback);
+    }
+
+    private void InitializeEmulator()
+    {
+        DefaultEmulatorManager manager =
+            _controllerObject.GetComponentInChildren<DefaultEmulatorManager>();
+
         if (manager != null)
         {
-            manager.Init(controller);
+            manager.Init(this);
         }
     }
-    
-    public override void vmethod_2(EPlayerState previousState, EPlayerState nextState)
+
+    private Player.ObjectInHandsOperation CreateSpawnOperation()
     {
+        return new CustomSpawnOperation(this);
     }
 
-    public override void vmethod_1(Action callback)
+    private Player.ObjectInHandsOperation CreateIdlingOperation()
     {
-        InitiateOperation<OperationOne>().Start(callback);
+        return new CustomIdlingOperation(this);
     }
 
-    private Player.BaseAnimationOperationClass CreateOperationOne()
+    private Player.ObjectInHandsOperation CreateRemoveOperation()
     {
-        return new OperationOne(this);
+        return new CustomRemoveOperation(this);
     }
 
-    private Player.BaseAnimationOperationClass CreateOperationTwo()
+    private Player.ObjectInHandsOperation CreateDropBackpackOperation()
     {
-        return new OperationTwo(this);
+        return new CustomDropBackpackOperation(this);
     }
 
-    private Player.BaseAnimationOperationClass CreateOperationThree()
+    private sealed class CustomSpawnOperation
+        : Player.UsableItemController.SpawnOperation
     {
-        return new OperationThree(this);
-    }
-
-    private Player.BaseAnimationOperationClass CreateOperationFour()
-    {
-        return new OperationFour(this);
-    }
-
-    private class OperationOne(CustomUsableItemController controller) : Class1305(controller)
-    {
-        public override void vmethod_0()
+        public CustomSpawnOperation(CustomUsableItemController controller)
+            : base(controller)
         {
-            OperationTwo operation = UsableItemController_0.InitiateOperation<OperationTwo>();
-            operation.Start();
+        }
 
-            Action_1();
+        public override void WeaponAppeared()
+        {
+            SetIdlingOperation();
+        }
 
-            if (Action_0 != null)
+        public override void SetIdlingOperation()
+        {
+            CustomIdlingOperation idling =
+                Controller.InitiateOperation<CustomIdlingOperation>();
+
+            idling.Start();
+
+            _onWeaponAppear?.Invoke();
+
+            if (_hideAction != null)
             {
-                operation.HideWeapon(Action_0, Bool_0);
+                idling.HideWeapon(_hideAction, _fastDrop);
             }
         }
 
         public override void SetLeftStanceAnimOnStartOperation()
         {
-            Player_0.MovementContext.LeftStanceController.DisableLeftStanceAnimFromHandsAction();
+            Player.MovementContext.LeftStanceController
+                .DisableLeftStanceAnimFromHandsAction();
         }
     }
 
-    private class OperationTwo(CustomUsableItemController controller) : Class1299(controller)
+    private sealed class CustomIdlingOperation
+        : Player.UsableItemController.Idling
     {
-        public override void vmethod_0(GInterface443 oneItemOperation, Callback callback)
+        public CustomIdlingOperation(CustomUsableItemController controller)
+            : base(controller)
         {
-            UsableItemController_0.InitiateOperation<OperationFour>().Start(oneItemOperation.Item1, callback);
         }
-        
+
         public override void HideWeapon(Action onHidden, bool fastDrop)
         {
             State = Player.EOperationState.Finished;
-            UsableItemController_0.InitiateOperation<OperationThree>().Start(onHidden, fastDrop);
+
+            Controller.InitiateOperation<CustomRemoveOperation>()
+                .Start(onHidden, fastDrop);
+        }
+
+        public override void InitiateDropBackpackOperation(
+            IOneItemOperation oneItemOperation,
+            Callback callback)
+        {
+            Controller.InitiateOperation<CustomDropBackpackOperation>()
+                .Start(oneItemOperation.Item1, callback);
         }
     }
 
-    private class OperationThree(CustomUsableItemController controller) : Class1302(controller);
-
-    private class OperationFour(CustomUsableItemController controller) : Class1293(controller)
+    private sealed class CustomRemoveOperation
+        : Player.UsableItemController.Remove
     {
-        public override void vmethod_0()
+        public CustomRemoveOperation(CustomUsableItemController controller)
+            : base(controller)
         {
-            UsableItemController_0.InitiateOperation<OperationTwo>().Start();
+        }
+    }
+
+    private sealed class CustomDropBackpackOperation
+        : Player.UsableItemController.DropBackpackOperation
+    {
+        public CustomDropBackpackOperation(
+            CustomUsableItemController controller)
+            : base(controller)
+        {
+        }
+
+        public override void InitiateIdlingOperation()
+        {
+            Controller.InitiateOperation<CustomIdlingOperation>().Start();
         }
     }
 }
-
 #endif

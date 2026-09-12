@@ -6,6 +6,10 @@ using System.IO;
 using System.Reflection;
 using UnityGB;
 using UnityEngine.UI;
+using EFT.Communications;
+using static ObjectInHandsAnimator;
+
+
 
 
 #if !UNITY_EDITOR
@@ -217,7 +221,8 @@ public class DefaultEmulatorManager : MonoBehaviour
 
     public DefaultAudioOutput defaultAudioOutput;
     public AudioSource emulatorAudioSource;
-
+    private CustomUsableItemController _boundController;
+    private CustomUsableItem _boundItem;
     public Emulator Emulator { get; set; }
     private bool _emulatorInitialized;
     public bool emulatorOn;
@@ -261,6 +266,50 @@ public class DefaultEmulatorManager : MonoBehaviour
     private void OnDisable()
     {
         Emulator?.Save();
+        ResetSessionState();
+    }
+
+    private void OnDestroy()
+    {
+        ResetSessionState();
+    }
+
+    private void ResetSessionState()
+    {
+        StopAllCoroutines();
+
+        emulatorOn = false;
+        _emulatorInitialized = false;
+
+        try
+        {
+            Emulator?.Stop();
+        }
+        catch
+        {
+        }
+
+        if (batteryIndicator)
+            batteryIndicator.SetActive(false);
+
+        if (screenUI)
+        {
+            screenUI.texture = null;
+            Color c = screenUI.color;
+            screenUI.color = new Color(c.r, c.g, c.b, 0f);
+        }
+
+        _slotManager?.Deinit();
+
+        _controller = null;
+        _boundController = null;
+        _boundItem = null;
+        _weaponPrefab = null;
+        _weaponGameObject = null;
+        _inventoryControllerClass = null;
+        _itemUiContext = null;
+        _compoundItem = null;
+        _animator = null;
     }
 #if !UNITY_EDITOR
     private void InitializeKeyBindings()
@@ -391,7 +440,7 @@ public class DefaultEmulatorManager : MonoBehaviour
                         }
                         else
                         {
-                            NotificationManagerClass.DisplaySingletonWarningNotification(
+                            NotificationManager.DisplaySingletonWarningNotification(
                                 "Cannot turn on the GameBoy without a loaded ROM.".Localized());
                         }
 
@@ -513,44 +562,44 @@ public class DefaultEmulatorManager : MonoBehaviour
     public void Init(CustomUsableItemController controller)
     {
         _player = GameBoyEmulator.KomradeClient.Player;
-
-        if (!_player)
+        if (!_player || controller == null)
             return;
 
-        // Use the passed controller instead of looking it up
+        var newItem = controller.Item as CustomUsableItem;
+
+        bool controllerChanged = !ReferenceEquals(_boundController, controller);
+        bool itemChanged = !ReferenceEquals(_boundItem, newItem);
+
+        if (controllerChanged || itemChanged)
+        {
+            ResetSessionState();
+        }
+
         _controller = controller;
-
-        if (_controller == null)
-            return;
+        _boundController = controller;
+        _boundItem = newItem;
 
         _inventoryControllerClass = _player.InventoryController;
-
         if (_inventoryControllerClass == null)
             return;
 
-        // Now we can safely get the controller object
         GameObject controllerObject = _controller.ControllerGameObject;
-
         if (controllerObject == null)
             return;
 
         _weaponPrefab = controllerObject.GetComponent<WeaponPrefab>();
-
         if (_weaponPrefab == null)
             return;
 
         _weaponGameObject = _weaponPrefab._objectInstance;
-
         if (_weaponGameObject == null)
             return;
 
         _itemUiContext = ItemUiContext.Instance;
-
         if (_itemUiContext == null)
             return;
 
-        _compoundItem = _itemUiContext.CompoundItem_0;
-
+        _compoundItem = _itemUiContext.PlayerStash;
         if (_compoundItem == null)
             return;
 
@@ -558,20 +607,19 @@ public class DefaultEmulatorManager : MonoBehaviour
             return;
 
         _animator = _controller.FirearmsAnimator.Animator;
-
         if (_animator == null)
             return;
 
-        _gameObject = CommonUtils.GetGameBoyEmulatorObject(_controller); // Pass controller
-        _gameboyEmulatorGameObject = _gameObject;
+        _gameboyEmulatorGameObject = CommonUtils.GetGameBoyEmulatorObject(_controller);
+        if (_gameboyEmulatorGameObject == null)
+            return;
 
         InitializeEmulator();
-        InitializeSlotManager();
         InitializeModItemManager();
         InitializeAnimationManager();
+        InitializeSlotManager(_controller);
         InitializeKeyBindings();
     }
-    
     private void InitializeAnimationManager()
     {
 #if DEBUG
@@ -622,36 +670,19 @@ public class DefaultEmulatorManager : MonoBehaviour
         }
     }
 
-    private void InitializeSlotManager()
+    private void InitializeSlotManager(CustomUsableItemController controller)
     {
-#if DEBUG
-        Console.WriteLine($"GameBoyEmulatorGameObject is null: {!_gameboyEmulatorGameObject}");
-        Console.WriteLine($"SlotManager already initialized and registered: {_slotManager && _slotManager.isRegistered}");
-#endif
-
-        if (_slotManager && _slotManager.isRegistered)
-        {
-            return;
-        }
-
         _slotManager = _gameboyEmulatorGameObject?.GetComponent<SlotManager>();
-
-#if DEBUG
-        Console.WriteLine($"SlotManager component found: {_slotManager != null}");
-#endif
 
         if (!_slotManager)
         {
             _slotManager = _gameboyEmulatorGameObject?.AddComponent<SlotManager>();
-
-#if DEBUG
-            Console.WriteLine("SlotManager component added to GameBoyEmulatorGameObject.");
-#endif
+            Console.WriteLine("[GameBoy] SlotManager component added to GameBoyEmulatorGameObject.");
         }
 
-#if DEBUG
-        Console.WriteLine("SlotManager initialized.");
-#endif
+        _slotManager.Init(controller);
+
+        Console.WriteLine($"[GameBoy] SlotManager Init complete. Registered: {_slotManager.isRegistered}");
     }
 
     private GameBoyCartridge GetCurrentCartridge()
@@ -709,7 +740,7 @@ public class DefaultEmulatorManager : MonoBehaviour
 
         if (currentCartridge != null)
         {
-            NotificationManagerClass.DisplaySingletonWarningNotification("Cartridge is already slotted into the item"
+            NotificationManager.DisplaySingletonWarningNotification("Cartridge is already slotted into the item"
                 .Localized());
 #if DEBUG
             Console.WriteLine("A cartridge is already slotted. Displaying notification and returning...");
@@ -801,7 +832,7 @@ public class DefaultEmulatorManager : MonoBehaviour
         }
         else
         {
-            NotificationManagerClass.DisplaySingletonWarningNotification("No cartridge present in the slot to unload"
+            NotificationManager.DisplaySingletonWarningNotification("No cartridge present in the slot to unload"
                 .Localized());
         }
     }
@@ -822,7 +853,7 @@ public class DefaultEmulatorManager : MonoBehaviour
         GameBoyCartridge currentCartridge = GetCurrentCartridge();
         if (currentCartridge == null)
         {
-            NotificationManagerClass.DisplayWarningNotification("Cannot turn on the GameBoy without a cartridge loaded."
+            NotificationManager.DisplayWarningNotification("Cannot turn on the GameBoy without a cartridge loaded."
                 .Localized());
             return;
         }
@@ -831,7 +862,7 @@ public class DefaultEmulatorManager : MonoBehaviour
 
         if (string.IsNullOrEmpty(filename))
         {
-            NotificationManagerClass.DisplayWarningNotification("No RomName defined for the current cartridge.."
+            NotificationManager.DisplayWarningNotification("No RomName defined for the current cartridge.."
                 .Localized());
             return;
         }
@@ -843,7 +874,7 @@ public class DefaultEmulatorManager : MonoBehaviour
         if (!File.Exists(path))
         {
 #if !UNITY_EDITOR
-            NotificationManagerClass.DisplayWarningNotification(
+            NotificationManager.DisplayWarningNotification(
                 "No Rom found for the current Cartridge".Localized());
 #endif
             return;

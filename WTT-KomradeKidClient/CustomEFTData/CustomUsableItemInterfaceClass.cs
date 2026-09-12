@@ -1,15 +1,16 @@
 ﻿#if !UNITY_EDITOR
+using EFT.NextObservedPlayer;
 using UnityEngine;
 
 namespace GameBoyEmulator.CustomEFTData;
 
-public class CustomUsableItemInterfaceClass : GInterface323
+public class CustomUsableItemInterfaceClass : IObservedUsableItem
 {
 	public void Initialize(GameObject gameObject)
 	{
 	}
 
-	public void UpdateData(GStruct337 observedUsableItemUpdatedData)
+	public void UpdateData(ObservedUsableItemUpdatedData observedUsableItemUpdatedData)
 	{
 	}
 

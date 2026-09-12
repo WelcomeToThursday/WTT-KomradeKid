@@ -12,7 +12,7 @@ namespace GameBoyEmulator.Patches
     {
         protected override MethodBase GetTargetMethod()
         {
-            return typeof(ClientUsableItemController).GetMethod("smethod_11", BindingFlags.Static | BindingFlags.Public);
+            return typeof(ClientUsableItemController).GetMethod("CreateAsync", BindingFlags.Static | BindingFlags.Public);
         }
 
         [PatchPrefix]
@@ -25,7 +25,7 @@ namespace GameBoyEmulator.Patches
             CustomUsableItem item = player.InventoryController.FindItem<CustomUsableItem>(itemId);
             if (item != null)
             {
-                __result = Player.UsableItemController.smethod_7<ClientUsableItemController>(player, item);
+                __result = Player.UsableItemController.CreateControllerAsync<ClientUsableItemController>(player, item);
                 return false;
             }
 

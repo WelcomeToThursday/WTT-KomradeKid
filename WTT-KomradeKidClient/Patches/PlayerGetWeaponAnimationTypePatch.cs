@@ -7,7 +7,7 @@ using SPT.Reflection.Patching;
 
 namespace GameBoyEmulator.Patches
 {
-    internal class GetWeaponAnimationTypePatch : ModulePatch
+    internal class PlayerGetWeaponAnimationTypePatch : ModulePatch
     {
         protected override MethodBase GetTargetMethod()
         {

@@ -1,13 +1,15 @@
 ﻿#if !UNITY_EDITOR
+using EFT.NetworkPackets;
+
 namespace GameBoyEmulator.CustomEFTData
 {
     public class ClientCustomUsableItemController : CustomUsableItemController
     {
-        public GStruct391 UsableItemPacket;
+        public UsableItemPacket UsableItemPacket;
 
         public override void CompassStateHandler(bool isActive)
         {
-            UsableItemPacket.CompassPacket = new GStruct367(isActive);
+            UsableItemPacket.CompassPacket = new CompassPacket(isActive);
             base.CompassStateHandler(isActive);
         }
 
@@ -29,7 +31,7 @@ namespace GameBoyEmulator.CustomEFTData
 
         public override void SetInventoryOpened(bool opened)
         {
-            UsableItemPacket.EnableInventoryPacket = new GStruct372
+            UsableItemPacket.EnableInventoryPacket = new EnableInventoryPacket
             {
                 EnableInventory = true,
                 InventoryStatus = opened

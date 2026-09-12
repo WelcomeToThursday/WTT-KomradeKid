@@ -1,17 +1,18 @@
 #if !UNITY_EDITOR
-using System;
 using BepInEx;
 using BepInEx.Bootstrap;
 using Comfort.Common;
 using EFT;
 using EFT.UI;
+using GameBoyEmulator.CustomEFTData;
+using GameBoyEmulator.Patches;
+using GameBoyEmulator.Utils;
+using SPT.Reflection.Patching;
+using System;
 using System.IO;
 using System.Reflection;
-using GameBoyEmulator.CustomEFTData;
-using GameBoyEmulator.Utils;
-using GameBoyEmulator.Patches;
-using SPT.Reflection.Patching;
 using UnityEngine;
+using WTTClientCommonLib;
 using WTTClientCommonLib.Helpers;
 using WTTClientCommonLib.Services;
 
@@ -20,7 +21,10 @@ namespace GameBoyEmulator
 {
     [BepInDependency("com.fika.core", BepInDependency.DependencyFlags.SoftDependency)]
     [BepInDependency("com.wtt.commonlib")]
-    [BepInPlugin("com.wtt.komradekid", "GameBoyEmulator", "2.0")]
+    [BepInPlugin(
+    PluginConstants.Guid,
+    PluginConstants.Name,
+    PluginConstants.Version)]
 
     internal class KomradeClient : BaseUnityPlugin
     {
@@ -33,7 +37,7 @@ namespace GameBoyEmulator
 
         internal void Awake()
         {
-            CustomTemplateIdToObjectService.AddNewTemplateIdToObjectMapping(NewTemplateIdToObjectMappingClass.CustomMappings);
+            //CustomTemplateIdToObjectService.AddNewTemplateIdToObjectMapping(NewTemplateIdToObjectMappingClass.CustomMappings);
             MenuSettings.Init(Config);
             new InstallModPatch().Enable();
 #if DEBUG
@@ -53,12 +57,11 @@ namespace GameBoyEmulator
             new TranslateCommandHideoutPatch().Enable();
             new ClientUsableItemControllerPatch().Enable();
             new UsableAnimationsHandsControllerPatch().Enable();
-            new HandsControllerClassPatch().Enable();
+            new HandsControllerGetWeaponAnimationTypePatch().Enable();
             new IsAtBindablePlacePatch().Enable();
             new IsAtReachablePlace().Enable();
-            new GetWeaponAnimationTypePatch().Enable();
+            new PlayerGetWeaponAnimationTypePatch().Enable();
             new CreateItemAsyncPatch().Enable();
-            new SetControllerInsteadRemovedOnePatch().Enable();
             new SetHandsUsableItemPatch().Enable();
             new TryProceedPatch().Enable();
             FikaInstalled = Chainloader.PluginInfos.ContainsKey("com.fika.core");
@@ -110,15 +113,12 @@ namespace GameBoyEmulator
         
                 if (fikaPatchType != null)
                 {
-                    // Create an instance of the patch
                     var fikaPatchInstance = Activator.CreateInstance(fikaPatchType);
             
-                    // Get the Enable method from ModulePatch base class
                     var enableMethod = fikaPatchType.GetMethod("Enable", BindingFlags.Public | BindingFlags.Instance);
             
                     if (enableMethod != null)
                     {
-                        // Invoke Enable() on the patch instance
                         enableMethod.Invoke(fikaPatchInstance, null);
                         LogHelper.LogInfo("[WTT-KomradeKid] Fika module loaded and FikaProceedPatch enabled");
                     }

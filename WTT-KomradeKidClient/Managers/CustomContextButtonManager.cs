@@ -1,11 +1,15 @@
 ﻿#if !UNITY_EDITOR
+using Diz.LanguageExtensions;
+using Diz.Utils;
+using EFT;
+using EFT.Communications;
 using EFT.InventoryLogic;
 using EFT.UI;
+using GameBoyEmulator.CustomEFTData;
+using GameBoyEmulator.Utils;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using GameBoyEmulator.CustomEFTData;
-using GameBoyEmulator.Utils;
 
 namespace GameBoyEmulator.Managers
 {
@@ -14,20 +18,20 @@ namespace GameBoyEmulator.Managers
     {
         private static CustomUsableItem FindCustomUsableItem(InventoryController inventoryControllerClass, IEnumerable<CompoundItem> collections)
         {
-            return (GClass2340.InRaid
+            return (InGameStatus.InRaid
                 ? inventoryControllerClass.GetReachableItemsOfType<CustomUsableItem>()
                 : collections.GetTopLevelItems().OfType<CustomUsableItem>())
                 .FirstOrDefault();
         }
         private static GameBoyCartridge FindGameBoyCartridge(InventoryController inventoryControllerClass, IEnumerable<CompoundItem> collections)
         {
-            return (GClass2340.InRaid
+            return (InGameStatus.InRaid
                 ? inventoryControllerClass.GetReachableItemsOfType<GameBoyCartridge>()
                 : collections.GetTopLevelItems().OfType<GameBoyCartridge>())
                 .FirstOrDefault();
         }
 
-        public static async Task InstallCartridge(ItemUiContext __itemUiContext, ItemContextAbstractClass itemContext, CompoundItem[] collections)
+        public static async Task InstallCartridge(ItemUiContext __itemUiContext, ItemContext itemContext, CompoundItem[] collections)
         {
             if (__itemUiContext == null)
             {
@@ -60,12 +64,12 @@ namespace GameBoyEmulator.Managers
 
                 if (gameboyCartridge == null)
                 {
-                    NotificationManagerClass.DisplaySingletonWarningNotification("Can't find any appropriate cartridge".Localized());
+                    NotificationManager.DisplaySingletonWarningNotification("Can't find any appropriate cartridge".Localized());
                 }
                 else
                 {
-                    var result = await ItemUiContext.smethod_0(inventoryControllerClass, gameboyCartridge,
-                        InteractionsHandlerClass.Move(gameboyCartridge, cartridgeSlot?.CreateItemAddress(),
+                    var result = await ItemUiContext.RunWithSound(inventoryControllerClass, gameboyCartridge,
+                        ItemManipulator.Move(gameboyCartridge, cartridgeSlot?.CreateItemAddress(),
                             inventoryControllerClass, true));
 
                     if (!result.Succeed && inventoryControllerClass.CanThrow(gameboyCartridge))
@@ -76,10 +80,10 @@ namespace GameBoyEmulator.Managers
             }
             else
             {
-                NotificationManagerClass.DisplaySingletonWarningNotification("A cartridge is already loaded in the GameBoy.".Localized());
+                NotificationManager.DisplaySingletonWarningNotification("A cartridge is already loaded in the GameBoy.".Localized());
             }
         }
-        public static async Task InstallAccessory(ItemUiContext __itemUiContext, ItemContextAbstractClass itemContext, CompoundItem[] collections)
+        public static async Task InstallAccessory(ItemUiContext __itemUiContext, ItemContext itemContext, CompoundItem[] collections)
         {
             if (__itemUiContext == null)
             {
@@ -112,13 +116,13 @@ namespace GameBoyEmulator.Managers
 
                 if (gameboyAccessory == null)
                 {
-                    NotificationManagerClass.DisplaySingletonWarningNotification("Can't find any appropriate accessory".Localized());
+                    NotificationManager.DisplaySingletonWarningNotification("Can't find any appropriate accessory".Localized());
                 }
                 else
                 {
 
-                    var result = await ItemUiContext.smethod_0(inventoryControllerClass, gameboyAccessory,
-                        InteractionsHandlerClass.Move(gameboyAccessory, accessorySlot?.CreateItemAddress(),
+                    var result = await ItemUiContext.RunWithSound(inventoryControllerClass, gameboyAccessory,
+                        ItemManipulator.Move(gameboyAccessory, accessorySlot?.CreateItemAddress(),
                             inventoryControllerClass, true));
 
                     if (!result.Succeed && inventoryControllerClass.CanThrow(gameboyAccessory))
@@ -129,7 +133,7 @@ namespace GameBoyEmulator.Managers
             }
             else
             {
-                NotificationManagerClass.DisplaySingletonWarningNotification("Accessory is already loaded in the GameBoy.".Localized());
+                NotificationManager.DisplaySingletonWarningNotification("Accessory is already loaded in the GameBoy.".Localized());
             }
 
         }
@@ -148,13 +152,13 @@ namespace GameBoyEmulator.Managers
                 GameBoyCartridge gameboyCartridge = FindGameBoyCartridge(inventoryControllerClass, collections);
                 if (gameboyCartridge == null)
                 {
-                    NotificationManagerClass.DisplaySingletonWarningNotification("Can't find any appropriate cartridge".Localized());
+                    NotificationManager.DisplaySingletonWarningNotification("Can't find any appropriate cartridge".Localized());
                 }
                 else
                 {
 
-                    var result = await ItemUiContext.smethod_0(inventoryControllerClass, gameboyCartridge,
-                        InteractionsHandlerClass.Move(gameboyCartridge, cartridgeSlot?.CreateItemAddress(),
+                    var result = await ItemUiContext.RunWithSound(inventoryControllerClass, gameboyCartridge,
+                        ItemManipulator.Move(gameboyCartridge, cartridgeSlot?.CreateItemAddress(),
                             inventoryControllerClass, true));
                     if (!result.Succeed && inventoryControllerClass.CanThrow(gameboyCartridge))
                     {
@@ -190,17 +194,17 @@ namespace GameBoyEmulator.Managers
                             enumerable = enumerable2;
                         }
                         IEnumerable<CompoundItem> targets = enumerable;
-                        GStruct154<GInterface424> value = InteractionsHandlerClass.QuickFindAppropriatePlace(currentCartridge, inventoryControllerClass, targets, InteractionsHandlerClass.EMoveItemOrder.UnloadWeapon, true);
+                    OperationResult<IItemOperationResult> value = ItemManipulator.QuickFindAppropriatePlace(currentCartridge, inventoryControllerClass, targets, ItemManipulator.EMoveItemOrder.UnloadWeapon, true);
                         bool flag2;
                         if (flag2 = value.Succeeded)
                         {
-                            flag2 = (await ItemUiContext.smethod_0(inventoryControllerClass, currentCartridge, value)).Succeed;
+                            flag2 = (await ItemUiContext.RunWithSound(inventoryControllerClass, currentCartridge, value)).Succeed;
                         }
                         if (!flag2)
                         {
-                            if (!GClass2340.InRaid)
+                            if (!InGameStatus.InRaid)
                             {
-                                NotificationManagerClass.DisplaySingletonWarningNotification("Can't find a place for item".Localized());
+                            NotificationManager.DisplaySingletonWarningNotification("Can't find a place for item".Localized());
                             }
                             else if (inventoryControllerClass.CanThrow(currentCartridge))
                             {

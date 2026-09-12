@@ -1,20 +1,68 @@
 ﻿#if !UNITY_EDITOR
+using Comfort.Common;
+using Diz.LanguageExtensions;
+using Diz.Utils;
+using EFT;
+using EFT.AssetsManager;
+using EFT.Communications;
+using EFT.InventoryLogic;
 using EFT.UI;
+using GameBoyEmulator.CustomEFTData;
+using GameBoyEmulator.Utils;
 using System.Collections.Generic;
 using System.Linq;
 using System.Threading.Tasks;
-using EFT.InventoryLogic;
 using UnityEngine;
-using EFT.AssetsManager;
-using Comfort.Common;
-using EFT;
-using GameBoyEmulator.CustomEFTData;
-using GameBoyEmulator.Utils;
 
 namespace GameBoyEmulator.Managers
 {
     public class GameBoyModItemManager : MonoBehaviour
     {
+        public async Task UnloadCartridge(
+    CustomUsableItem gameBoy,
+    InventoryController inventoryController)
+        {
+            if (gameBoy == null || inventoryController == null)
+            {
+                return;
+            }
+
+            GameBoyCartridge currentCartridge = gameBoy.GetCurrentCartridge();
+            if (currentCartridge == null)
+            {
+                return;
+            }
+
+            GridItemAddress destination = inventoryController.Inventory.Equipment
+                .GetPrioritizedGridsForUnloadedObject(false)
+                .Select(grid => grid.FindLocationForItem(currentCartridge))
+                .Where(address => address != null)
+                .OrderBy(address => address.Grid.GridWidth * address.Grid.GridHeight)
+                .FirstOrDefault();
+
+            if (destination == null)
+            {
+                return;
+            }
+
+            OperationResult<MoveResult> operationResult = ItemManipulator.Move(
+                currentCartridge,
+                destination,
+                inventoryController,
+                true);
+
+            if (operationResult.Failed)
+            {
+                return;
+            }
+
+            if (!operationResult.Value.CanExecute(inventoryController))
+            {
+                return;
+            }
+
+            await inventoryController.TryRunNetworkTransaction(operationResult, null);
+        }
         public async Task UnloadCartridgeAsync(CustomUsableItem gameBoy, CompoundItem[] compoundItem, InventoryController inventoryControllerClass, ItemUiContext itemUiContext, AnimationManager animationManager)
         {
             GameBoyCartridge currentCartridge = gameBoy.GetCurrentCartridge();
@@ -25,7 +73,7 @@ namespace GameBoyEmulator.Managers
 
                 if (!inStorage && compoundItem == null)
                 {
-                    NotificationManagerClass.DisplaySingletonWarningNotification("Error: equipment panel is null while cartridge is not in storage.".Localized());
+                    NotificationManager.DisplaySingletonWarningNotification("Error: equipment panel is null while cartridge is not in storage.".Localized());
                 }
                 else
                 {
@@ -33,13 +81,13 @@ namespace GameBoyEmulator.Managers
                         ? equipment.ToEnumerable().Concat(compoundItem)
                         : equipment.ToEnumerable();
 
-                    GStruct154<GInterface424> value = InteractionsHandlerClass.QuickFindAppropriatePlace(
+                    OperationResult<IItemOperationResult> value = ItemManipulator.QuickFindAppropriatePlace(
                         currentCartridge, inventoryControllerClass, targets,
-                        InteractionsHandlerClass.EMoveItemOrder.UnloadWeapon, true);
+                        ItemManipulator.EMoveItemOrder.UnloadWeapon, true);
 
                     if (value.Succeeded)
                     {
-                        bool success = (await ItemUiContext.smethod_0(inventoryControllerClass, currentCartridge, value)).Succeed;
+                        bool success = (await ItemUiContext.RunWithSound(inventoryControllerClass, currentCartridge, value)).Succeed;
                         if (!success && inventoryControllerClass.CanThrow(currentCartridge))
                         {
                             inventoryControllerClass.ThrowItem(currentCartridge, true);
@@ -47,7 +95,7 @@ namespace GameBoyEmulator.Managers
                     }
                     else
                     {
-                        NotificationManagerClass.DisplayWarningNotification("Can't find a place for item".Localized());
+                        NotificationManager.DisplayWarningNotification("Can't find a place for item".Localized());
                     }
                 }
             }
@@ -63,16 +111,16 @@ namespace GameBoyEmulator.Managers
 
                 if (gameboyCartridge == null)
                 {
-                    NotificationManagerClass.DisplayWarningNotification("Can't find any appropriate cartridge".Localized());
+                    NotificationManager.DisplayWarningNotification("Can't find any appropriate cartridge".Localized());
                 }
                 else if (gameboyCartridge.PinLockState == EItemPinLockState.Locked)
                 {
-                    NotificationManagerClass.DisplaySingletonWarningNotification(new InteractionsHandlerClass.GClass1606(gameboyCartridge).GetLocalizedDescription());
+                    NotificationManager.DisplaySingletonWarningNotification(new ItemManipulator.ItemManuallyLockedError(gameboyCartridge).GetLocalizedDescription());
                 }
                 else
                 {
-                    var result = await ItemUiContext.smethod_0(inventoryControllerClass, gameboyCartridge,
-                        InteractionsHandlerClass.Move(gameboyCartridge, cartridgeSlot?.CreateItemAddress(),
+                    var result = await ItemUiContext.RunWithSound(inventoryControllerClass, gameboyCartridge,
+                        ItemManipulator.Move(gameboyCartridge, cartridgeSlot?.CreateItemAddress(),
                             inventoryControllerClass, true));
 
                     if (!result.Succeed && inventoryControllerClass.CanThrow(gameboyCartridge))
@@ -83,13 +131,13 @@ namespace GameBoyEmulator.Managers
             }
             else
             {
-                NotificationManagerClass.DisplaySingletonWarningNotification("A cartridge is already loaded in the GameBoy.".Localized());
+                NotificationManager.DisplaySingletonWarningNotification("A cartridge is already loaded in the GameBoy.".Localized());
             }
         }
 
         private GameBoyCartridge FindCartridge(IEnumerable<CompoundItem> compoundItem, InventoryController inventoryControllerClass)
         {
-            return (GClass2340.InRaid
+            return (InGameStatus.InRaid
                 ? inventoryControllerClass.GetReachableItemsOfType<GameBoyCartridge>()
                 : compoundItem.GetTopLevelItems().OfType<GameBoyCartridge>())
                 .FirstOrDefault();
@@ -104,7 +152,7 @@ namespace GameBoyEmulator.Managers
 
             Player player = KomradeClient.Player;
 
-            InsertCartridge(Singleton<PoolManagerClass>.Instance.CreateItem(cartridge, Player.GetVisibleToCamera(player), player, true), animated);
+            InsertCartridge(Singleton<ObjectsFactory>.Instance.CreateItem(cartridge, Player.GetVisibleToCamera(player), player, true), animated);
         }
 
         public void InsertCartridge(GameObject cartridgeObject, bool animated)
@@ -187,7 +235,7 @@ namespace GameBoyEmulator.Managers
 
             cartridgeObject.transform.localRotation = Quaternion.Euler(90.0f, 0.0f, 0.0f);
 
-            TransformHelperClass.SetLayersRecursively(cartridgeObject, LayerMask.NameToLayer("Player"));
+            TransformTools.SetLayersRecursively(cartridgeObject, LayerMask.NameToLayer("Player"));
         }
 
         public void OnAccessoryAppeared(Slot accessorySlot, GameBoyAccessory accessory)
@@ -201,7 +249,7 @@ namespace GameBoyEmulator.Managers
 
             string accessoryType = accessory.AccessoryType;
 
-            InsertAccessoryIntoBone(Singleton<PoolManagerClass>.Instance.CreateItem(accessory, Player.GetVisibleToCamera(player), player, true), accessoryType);
+            InsertAccessoryIntoBone(Singleton<ObjectsFactory>.Instance.CreateItem(accessory, Player.GetVisibleToCamera(player), player, true), accessoryType);
         }
 
         public void InsertAccessoryIntoBone(GameObject accessoryObject, string accessoryType)
@@ -241,7 +289,7 @@ namespace GameBoyEmulator.Managers
             accessoryObject.transform.SetParent(accessoryBone, false);
             accessoryObject.transform.localPosition = Vector3.zero;
             accessoryObject.transform.localRotation = Quaternion.Euler(90.0f, 0.0f, 0.0f);
-            TransformHelperClass.SetLayersRecursively(accessoryObject, LayerMask.NameToLayer("Player"));
+            TransformTools.SetLayersRecursively(accessoryObject, LayerMask.NameToLayer("Player"));
 
             accessoryObject.SetActive(true);
 

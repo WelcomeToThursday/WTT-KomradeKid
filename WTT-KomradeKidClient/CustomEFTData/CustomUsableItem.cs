@@ -1,57 +1,55 @@
 ﻿#if !UNITY_EDITOR
+using Comfort.Common;
+using Diz.LanguageExtensions;
+using EFT;
+using EFT.Communications;
+using EFT.InventoryLogic;
+using JetBrains.Annotations;
 using System;
 using System.Collections.Generic;
 using System.Linq;
 using System.Runtime.InteropServices;
-using Comfort.Common;
-using Diz.LanguageExtensions;
-using EFT.InventoryLogic;
-using JetBrains.Annotations;
+using WTTClientCommonLib.Attributes;
 
 namespace GameBoyEmulator.CustomEFTData;
 
+[CustomParent("66e42bd851fa456a1ee37885", // Template ID
+            typeof(CustomUsableItem),   // Item type
+            typeof(CompoundItemTemplate))] // Template type
 public sealed class CustomUsableItem : CompoundItem
 {
     private Slot _cartridgeSlotCache;
 
     private Slot _accessorySlotCache;
 
-    public CustomUsableItem(string id, CompoundItemTemplateClass template) : base(id, template)
+    public CustomUsableItem(string id, CompoundItemTemplate template) : base(id, template)
     {
-        Slots = Array.ConvertAll(template.Slots, method_7);
+        Slots = Array.ConvertAll(template.Slots, CG_Ctor);
     }
     [StructLayout(LayoutKind.Auto)]
-    private struct Struct769
+    private struct CG_Apply
     {
-        public TraderControllerClass itemController;
+        public ItemController itemController;
     }
     public override IEnumerable<EItemInfoButton> ItemInteractionButtons
     {
         get
         {
-            foreach (var itemInfoButton in method_41())
-            {
-                yield return itemInfoButton;
-            }
+            return base.ItemInteractionButtons;
         }
     }
 
-    private IEnumerable<EItemInfoButton> method_41()
+    public override OperationResult Apply([NotNull] ItemController itemController, [NotNull] Item item, int count, bool simulate)
     {
-        return base.ItemInteractionButtons;
-    }
-
-    public override GStruct153 Apply([NotNull] TraderControllerClass itemController, [NotNull] Item item, int count, bool simulate)
-    {
-        Struct769 @struct;
+        CG_Apply @struct;
         @struct.itemController = itemController;
         if (!@struct.itemController.Examined(item))
         {
-            return new GClass1551(item);
+            return new ItemNotExaminedError(item);
         }
         if (!@struct.itemController.Examined(this))
         {
-            return new GClass1551(this);
+            return new ItemNotExaminedError(this);
         }
         Slot cartridgeSlot = GetCartridgeSlot();
         Slot accessorySlot = GetAccessorySlot();
@@ -62,28 +60,28 @@ public sealed class CustomUsableItem : CompoundItem
         {
             if (!cartridgeSlot.CanAccept(cartridge))
             {
-                return new Slot.GClass1579(cartridge, cartridgeSlot);
+                return new Slot.ItemFiltersWontAllowError(cartridge, cartridgeSlot);
             }
             ItemAddress itemAddress = cartridgeSlot.CreateItemAddress();
             IResult result = smethod_1(itemAddress, ref @struct);
             if (result.Failed)
             {
-                return new GClass1522(result.Error);
+                return new StringError(result.Error);
             }
-            GStruct154<GClass3411> value = InteractionsHandlerClass.Move(cartridge, itemAddress, @struct.itemController, simulate);
+            OperationResult<MoveResult> value = ItemManipulator.Move(cartridge, itemAddress, @struct.itemController, simulate);
             if (value.Succeeded)
             {
                 return value;
             }
             Item containedItem = cartridgeSlot.ContainedItem;
-            if (!GClass842.DisabledForNow && containedItem != null && GClass3396.CanSwap(cartridge, cartridgeSlot))
+            if (!UnityUtils.DisabledForNow && containedItem != null && SlotManipulator.CanSwap(cartridge, cartridgeSlot))
             {
-                return new GStruct153((Error)null);
+                return new OperationResult((Error)null);
             }
         }
         else
         {
-            GStruct153 result3 = base.Apply(@struct.itemController, item, count, simulate);
+            OperationResult result3 = base.Apply(@struct.itemController, item, count, simulate);
             if (result3.Succeeded)
             {
                 return result3;
@@ -91,36 +89,36 @@ public sealed class CustomUsableItem : CompoundItem
             IResult result4 = smethod_1(cartridgeSlot?.CreateItemAddress(), ref @struct);
             if (result4.Failed)
             {
-                return new GClass1522(result4.Error);
+                return new StringError(result4.Error);
             }
         }
         if ((accessory = (item as GameBoyAccessory)) != null && accessorySlot != null)
         {
             if (!accessorySlot.CanAccept(accessory))
             {
-                return new Slot.GClass1579(accessory, accessorySlot);
+                return new Slot.ItemFiltersWontAllowError(accessory, accessorySlot);
             }
             ItemAddress itemAddress = accessorySlot.CreateItemAddress();
             IResult result = smethod_1(itemAddress, ref @struct);
             if (result.Failed)
             {
-                return new GClass1522(result.Error);
+                return new StringError(result.Error);
             }
-            GStruct154<GClass3411> value = InteractionsHandlerClass.Move(accessory, itemAddress, @struct.itemController, simulate);
+            OperationResult<MoveResult> value = ItemManipulator.Move(accessory, itemAddress, @struct.itemController, simulate);
             if (value.Succeeded)
             {
                 return value;
             }
             error = value.Error;
             Item containedItem = accessorySlot.ContainedItem;
-            if (!GClass842.DisabledForNow && containedItem != null && GClass3396.CanSwap(accessory, accessorySlot))
+            if (!UnityUtils.DisabledForNow && containedItem != null && SlotManipulator.CanSwap(accessory, accessorySlot))
             {
-                return new GStruct153((Error)null);
+                return new OperationResult((Error)null);
             }
         }
         else
         {
-            GStruct153 result3 = base.Apply(@struct.itemController, item, count, simulate);
+            OperationResult result3 = base.Apply(@struct.itemController, item, count, simulate);
             if (result3.Succeeded)
             {
                 return result3;
@@ -129,17 +127,17 @@ public sealed class CustomUsableItem : CompoundItem
             IResult result4 = smethod_1(accessorySlot?.CreateItemAddress(), ref @struct);
             if (result4.Failed)
             {
-                return new GClass1522(result4.Error);
+                return new StringError(result4.Error);
             }
         }
         return error;
     }
 
 
-    private static IResult smethod_1(ItemAddress slotItemAddress, ref Struct769 struct769)
+    private static IResult smethod_1(ItemAddress slotItemAddress, ref CG_Apply CG_Apply)
     {
         InventoryController inventoryControllerClass;
-        if ((inventoryControllerClass = (struct769.itemController as InventoryController)) != null && inventoryControllerClass.Inventory.Equipment.ContainerSlots.Contains(slotItemAddress.Container) && struct769.itemController.SelectEvents(null).Any())
+        if ((inventoryControllerClass = (CG_Apply.itemController as InventoryController)) != null && inventoryControllerClass.Inventory.Equipment.ContainerSlots.Contains(slotItemAddress.Container) && CG_Apply.itemController.SelectEvents(null).Any())
         {
             return new FailedResult("Inventory/PlayerIsBusy");
         }
@@ -227,7 +225,7 @@ public sealed class CustomUsableItem : CompoundItem
         GameBoyCartridge currentCartridge = GetCurrentCartridge();
         if (currentCartridge != null && !KomradeClient.Player.InventoryController.Examined(currentCartridge))
         {
-            NotificationManagerClass.DisplaySingletonWarningNotification("Attached cartridge is not examined.".Localized());
+            NotificationManager.DisplaySingletonWarningNotification("Attached cartridge is not examined.".Localized());
             return false;
         }
         return true;

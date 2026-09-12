@@ -1,18 +1,24 @@
 ﻿#if !UNITY_EDITOR
+using ChartAndGraph;
+using EFT.InventoryLogic;
+using JetBrains.Annotations;
 using System;
 using System.Collections.Generic;
 using System.IO;
 using System.Linq;
 using System.Reflection;
-using EFT.InventoryLogic;
-using JetBrains.Annotations;
 using UnityEngine;
+using WTTClientCommonLib.Attributes;
 
 
 namespace GameBoyEmulator.CustomEFTData;
 
+[CustomParent("66f16b85ed966fb78f5563d8", // Template ID
+            null,   // Item type
+            typeof(GameBoyModTemplateType)      // Template type
+)]
 public class GameBoyModTemplateType(string romName, string cartridgeImage, string accessoryType)
-    : CompoundItemTemplateClass
+    : CompoundItemTemplate
 {
     public readonly string RomName = romName;
     public readonly string CartridgeImage = cartridgeImage;
@@ -23,6 +29,11 @@ public class GameBoyModItemType(string id, GameBoyModTemplateType template) : Co
 {
 }
 
+[CustomParent(
+                "6704271a4cc9e20c610eb120", // Template ID
+            typeof(GameBoyAccessory),   // Item type
+            typeof(GameBoyModTemplateType)         // Template type
+)]
 public class GameBoyAccessory : GameBoyModItemType
 {
     public GameBoyAccessory(string id, GameBoyModTemplateType template) : base(id, template)
@@ -57,11 +68,15 @@ public class GameBoyAccessory : GameBoyModItemType
         return base.ItemInteractionButtons;
     }
 
-    [GAttribute23] private readonly TagComponent _tag;
+    [SimpleAttribute] private readonly TagComponent _tag;
 
 }
 
-
+[CustomParent(
+                "66f17b4cb59dbccbf12990e6", // Template ID
+            typeof(GameBoyCartridge),   // Item type
+            typeof(GameBoyModTemplateType)         // Template type
+    )]
 public class GameBoyCartridge : GameBoyModItemType
 {
     public GameBoyCartridge(string id, GameBoyModTemplateType template) : base(id, template)
@@ -97,7 +112,7 @@ public class GameBoyCartridge : GameBoyModItemType
         return base.ItemInteractionButtons;
     }
 
-    [GAttribute23] private readonly TagComponent _tag;
+    [SimpleAttribute] private readonly TagComponent _tag;
 
     [CanBeNull]
     public GameBoyCartridge GetCurrentCartridge()

@@ -19,7 +19,7 @@ namespace GameBoyEmulator.Patches
             typeof(ItemUiContext).GetMethod("InstallMod", BindingFlags.Public | BindingFlags.Instance);
 
         [PatchPrefix]
-        private static bool Prefix(ItemContextAbstractClass itemContext, CompoundItem[] collections,
+        private static bool Prefix(ItemContext itemContext, CompoundItem[] collections,
             ItemUiContext __instance, ref Task __result)
         {
             if (itemContext.Item is GameBoyCartridge)
@@ -36,7 +36,7 @@ namespace GameBoyEmulator.Patches
             return true;
         }
 
-        private static async Task RunCartridgeInstallation(ItemUiContext itemUiContext, ItemContextAbstractClass itemContext, CompoundItem[] collections)
+        private static async Task RunCartridgeInstallation(ItemUiContext itemUiContext, ItemContext itemContext, CompoundItem[] collections)
         {
             try
             {
@@ -47,7 +47,7 @@ namespace GameBoyEmulator.Patches
                 Console.WriteLine($"Error installing cartridge: {ex}");
             }
         }
-        private static async Task RunAccessoryInstallation(ItemUiContext itemUiContext, ItemContextAbstractClass itemContext, CompoundItem[] collections)
+        private static async Task RunAccessoryInstallation(ItemUiContext itemUiContext, ItemContext itemContext, CompoundItem[] collections)
         {
             try
             {

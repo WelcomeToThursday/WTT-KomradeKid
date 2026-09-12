@@ -1,169 +1,257 @@
 ﻿#if !UNITY_EDITOR
+using Diz.Jobs;
+using EFT;
 using EFT.AssetsManager;
 using EFT.CameraControl;
 using EFT.InventoryLogic;
-using EFT;
+using EFT.Visual;
+using GameBoyEmulator.CustomEFTData;
 using JetBrains.Annotations;
+using SPT.Reflection.Patching;
 using System;
-using System.Collections.Generic;
+using System.Reflection;
 using System.Threading;
 using System.Threading.Tasks;
 using UnityEngine;
-using System.Reflection;
-using GameBoyEmulator.CustomEFTData;
-using SPT.Reflection.Patching;
 
 namespace GameBoyEmulator.Patches
 {
-internal class CreateItemAsyncPatch : ModulePatch
-{
-protected override MethodBase GetTargetMethod()
-{
-return typeof(PoolManagerClass).GetMethod("CreateItemAsync", BindingFlags.Instance | BindingFlags.Public);
-}
-
-    [PatchPrefix]
-    public static bool PatchPrefix(PoolManagerClass __instance, Item item, ECameraType cameraType, [CanBeNull] IPlayer player, bool isAnimated, GDelegate62 yield, CancellationToken ct, ref Task<GameObject> __result)
+    internal class CreateItemAsyncPatch : ModulePatch
     {
-        if (item == null)
+        protected override MethodBase GetTargetMethod()
         {
-            return true;
+            return typeof(ObjectsFactory).GetMethod(
+                "CreateItemAsync",
+                BindingFlags.Instance | BindingFlags.Public);
         }
 
-        if (item is CustomUsableItem || item is GameBoyCartridge || item is GameBoyAccessory)
+        [PatchPrefix]
+        public static bool PatchPrefix(
+            ObjectsFactory __instance,
+            Item item,
+            ECameraType cameraType,
+            [CanBeNull] IPlayer player,
+            bool isAnimated,
+            YieldDelegate yield,
+            CancellationToken ct,
+            ref Task<GameObject> __result)
         {
-            __result = CustomCreateItemAsync(__instance, item, cameraType, player, isAnimated, yield, ct);
+            if (item is not CustomUsableItem &&
+                item is not GameBoyCartridge &&
+                item is not GameBoyAccessory)
+            {
+                return true;
+            }
+
+            __result = CreateCustomItemAsync(
+                __instance,
+                item,
+                cameraType,
+                player,
+                isAnimated,
+                yield,
+                ct);
+
             return false;
         }
-        return true;
-    }
-    
-    private static async Task<GameObject> CustomCreateItemAsync(PoolManagerClass __instance, Item item, ECameraType cameraType, [CanBeNull] IPlayer player, bool isAnimated, GDelegate62 yield, CancellationToken ct)
-    {
-        // Updated to use Class1455 instead of Class1318
-        PoolManagerClass.Class1455 @class = new PoolManagerClass.Class1455();
-        PoolManagerClass.PoolsCategory poolCategory = PoolManagerClass.PoolsCategory.Raid;
 
-        // Updated field name from dictionary_2 to Dictionary_2 (capital D)
-        var dictionaryField = typeof(PoolManagerClass).GetField("Dictionary_2", BindingFlags.NonPublic | BindingFlags.Instance);
-        if (dictionaryField != null)
+        private static async Task<GameObject> CreateCustomItemAsync(
+            ObjectsFactory objectsFactory,
+            Item item,
+            ECameraType cameraType,
+            [CanBeNull] IPlayer player,
+            bool isAnimated,
+            YieldDelegate yield,
+            CancellationToken ct)
         {
-            var dictionary = (Dictionary<PoolManagerClass.PoolsCategory, CancellationToken>)dictionaryField.GetValue(__instance);
-            if (dictionary.TryGetValue(PoolManagerClass.PoolsCategory.Raid, out var token))
+            if (item == null)
             {
-                ct = CancellationTokenSource.CreateLinkedTokenSource(token, ct).Token;
+                return null;
             }
+
+            if (objectsFactory._cancellationTokens.TryGetValue(
+                    ObjectsFactory.PoolsCategory.Raid,
+                    out CancellationToken poolToken))
+            {
+                using CancellationTokenSource linkedSource =
+                    CancellationTokenSource.CreateLinkedTokenSource(
+                        poolToken,
+                        ct);
+
+                return await CreateCustomItemInternalAsync(
+                    objectsFactory,
+                    item,
+                    cameraType,
+                    player,
+                    isAnimated,
+                    yield,
+                    linkedSource.Token);
+            }
+
+            return await CreateCustomItemInternalAsync(
+                objectsFactory,
+                item,
+                cameraType,
+                player,
+                isAnimated,
+                yield,
+                ct);
         }
 
-        if (ct.IsCancellationRequested)
+        private static async Task<GameObject> CreateCustomItemInternalAsync(
+            ObjectsFactory objectsFactory,
+            Item item,
+            ECameraType cameraType,
+            [CanBeNull] IPlayer player,
+            bool isAnimated,
+            YieldDelegate yield,
+            CancellationToken ct)
         {
-            return null;
-        }
+            if (ct.IsCancellationRequested)
+            {
+                return null;
+            }
 
-        @class.itemGameObject = __instance.method_2(item.Prefab, poolCategory);
-        if (@class.itemGameObject == null)
-        {
-            PoolManagerClass.Logger.LogError($"Failed to create GameObject for item: {item}", Array.Empty<object>());
-            return null;
-        }
+            GameObject itemGameObject = objectsFactory.PopOrCreate(
+                item.Prefab,
+                ObjectsFactory.PoolsCategory.Raid);
 
-        // Updated cancellation registration to use method_0 instead of direct Destroy
-        var cancellationTokenRegistration = ct.Register(new Action(@class.method_0));
+            if (itemGameObject == null)
+            {
+                ObjectsFactory.Logger.LogError(
+                    $"Failed to create GameObject for item: {item}",
+                    Array.Empty<object>());
 
-        if (@class.itemGameObject.scene.buildIndex != -1 && @class.itemGameObject.transform.parent == null && Application.isPlaying)
-        {
-            UnityEngine.Object.DontDestroyOnLoad(@class.itemGameObject);
-        }
-        @class.itemGameObject.transform.localScale = Vector3.one;
+                return null;
+            }
 
-        await yield(null);
+            ObjectsFactory.CG_Class1455 cleanup =
+                new ObjectsFactory.CG_Class1455
+                {
+                    itemGameObject = itemGameObject
+                };
 
-        if (ct.IsCancellationRequested)
-        {
-            return null;
-        }
+            using CancellationTokenRegistration cancellationRegistration =
+                ct.Register(cleanup.method_0);
 
-        AssetPoolObject component = @class.itemGameObject.GetComponent<AssetPoolObject>();
+            if (itemGameObject.scene.buildIndex != -1 &&
+                itemGameObject.transform.parent == null &&
+                Application.isPlaying)
+            {
+                UnityEngine.Object.DontDestroyOnLoad(itemGameObject);
+            }
 
-        if (component == null)
-        {
-            PoolManagerClass.Logger.LogError($"No AssetPoolObject found for item: {item}", Array.Empty<object>());
-            return null;
-        }
+            itemGameObject.transform.localScale = Vector3.one;
 
-        Transform weaponHierarchy = null;
-        bool flag = item is CustomUsableItem;
-        if (flag)
-        {
-            weaponHierarchy = (component as WeaponPrefab)?.Hierarchy.transform;
-        }
+            await yield(null);
 
-        await yield(null);
+            if (ct.IsCancellationRequested)
+            {
+                return null;
+            }
 
-        if (ct.IsCancellationRequested)
-        {
-            return null;
-        }
+            AssetPoolObject poolObject =
+                itemGameObject.GetComponent<AssetPoolObject>();
 
-        // Updated from GClass2981 to GClass3248 (but check actual decompiled code for exact class name)
-        GClass3248 collection = item as GClass3248;
-        bool flag2 = false;
-        if (collection != null && !(item is CylinderMagazineItemClass))
-        {
-            flag2 = await __instance.method_4(collection, flag, cameraType, player, isAnimated, @class.itemGameObject, component, weaponHierarchy, ct, yield);
-        }
+            if (poolObject == null)
+            {
+                ObjectsFactory.Logger.LogError(
+                    $"No AssetPoolObject found for item: {item}",
+                    Array.Empty<object>());
 
-        if (ct.IsCancellationRequested)
-        {
-            return null;
-        }
+                return null;
+            }
 
-        if (flag)
-        {
-            WeaponPrefab weaponPrefab = component as WeaponPrefab;
-            if (weaponPrefab != null)
+            bool isGameBoyHandsItem = item is CustomUsableItem;
+
+            WeaponPrefab weaponPrefab = null;
+            Transform weaponHierarchy = null;
+
+            if (isGameBoyHandsItem)
+            {
+                weaponPrefab = poolObject as WeaponPrefab;
+
+                if (weaponPrefab == null)
+                {
+                    ObjectsFactory.Logger.LogError(
+                        $"Custom usable item '{item}' does not have a WeaponPrefab.",
+                        Array.Empty<object>());
+
+                    return null;
+                }
+
+                weaponHierarchy = weaponPrefab.Hierarchy.transform;
+            }
+
+            await yield(null);
+
+            if (ct.IsCancellationRequested)
+            {
+                return null;
+            }
+
+            bool hasAnimatedMods = false;
+
+            if (item is ContainerCollection collection &&
+                item is not CylinderMagazine)
+            {
+                hasAnimatedMods = await objectsFactory.AssembleMods(
+                    collection,
+                    isGameBoyHandsItem,
+                    cameraType,
+                    player,
+                    isAnimated,
+                    itemGameObject,
+                    poolObject,
+                    weaponHierarchy,
+                    ct,
+                    yield);
+            }
+
+            if (ct.IsCancellationRequested)
+            {
+                return null;
+            }
+
+            if (isGameBoyHandsItem)
             {
                 weaponPrefab.Init(player, player != null);
-                if (flag2 && player != null)
+
+                if (hasAnimatedMods && player != null)
                 {
                     weaponPrefab.RebindAnimator(player);
                 }
             }
-        }
-        else
-        {
-            if (item is GameBoyCartridge gameboyCartridge)
+
+            if (item is GameBoyCartridge cartridge)
             {
-                gameboyCartridge.ApplyStickerTexture(@class.itemGameObject);
-                @class.itemGameObject.name = @class.itemGameObject.name.Replace("(Clone)", string.Empty);
+                cartridge.ApplyStickerTexture(itemGameObject);
+
+                itemGameObject.name = itemGameObject.name.Replace(
+                    "(Clone)",
+                    string.Empty);
+            }
+            else if (item is GameBoyAccessory)
+            {
+                itemGameObject.name = itemGameObject.name.Replace(
+                    "(Clone)",
+                    string.Empty);
             }
 
-            if (item is GameBoyAccessory)
+            foreach (IDress dress in itemGameObject.GetComponents<IDress>())
             {
-                @class.itemGameObject.name = @class.itemGameObject.name.Replace("(Clone)", string.Empty);
+                dress.Init(item, isAnimated);
             }
-        }
 
-        if (ct.IsCancellationRequested)
-        {
-            return null;
-        }
+            if (item is Mod mod && mod.IsAnimated)
+            {
+                itemGameObject.name = itemGameObject.name.Replace(
+                    "(Clone)",
+                    string.Empty);
+            }
 
-        GInterface236[] components = @class.itemGameObject.GetComponents<GInterface236>();
-        foreach (var comp in components)
-        {
-            comp.Init(item, isAnimated);
+            return itemGameObject;
         }
-
-        Mod mod;
-        if ((mod = (item as Mod)) != null && mod.IsAnimated)
-        {
-            @class.itemGameObject.name = @class.itemGameObject.name.Replace("(Clone)", string.Empty);
-        }
-
-        cancellationTokenRegistration.Dispose();
-        return @class.itemGameObject;
     }
-}
 }
 #endif

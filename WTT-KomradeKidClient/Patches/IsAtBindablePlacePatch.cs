@@ -20,14 +20,14 @@ namespace GameBoyEmulator.Patches
         {
             if (item is CustomUsableItem usableItem)
             {
-                InventoryController.Class2402 @class = new InventoryController.Class2402();
-                @class.inventoryController_0 = __instance;
-                if (usableItem.CurrentAddress != null && !(usableItem.Parent is GClass3390))
+                InventoryController.CG_IsAtBindablePlace cg_IsAtBindablePlace = new InventoryController.CG_IsAtBindablePlace();
+                cg_IsAtBindablePlace.inventoryController_0 = __instance;
+                if (usableItem.CurrentAddress != null && !(usableItem.Parent is OwnerItself))
                 {
                     ItemAddress currentAddress = usableItem.Parent.Container.ParentItem.CurrentAddress;
-                    @class.parentSlot = ((currentAddress != null) ? currentAddress.Container : null) as Slot;
+                    cg_IsAtBindablePlace.parentSlot = ((currentAddress != null) ? currentAddress.Container : null) as Slot;
                     CompoundItem compoundItem = usableItem as CompoundItem;
-                    __result = Inventory.FastAccessSlots.Select(new Func<EquipmentSlot, Slot>(@class.method_0)).Any(new Func<Slot, bool>(@class.method_1)) && (compoundItem == null || !compoundItem.MissingVitalParts.Any<Slot>()) && __instance.Examined(usableItem);
+                    __result = Inventory.FastAccessSlots.Select(new Func<EquipmentSlot, Slot>(cg_IsAtBindablePlace.method_0)).Any(new Func<Slot, bool>(cg_IsAtBindablePlace.method_1)) && (compoundItem == null || !compoundItem.MissingVitalParts.Any<Slot>()) && __instance.Examined(usableItem);
                 }
             }
         }

@@ -1,21 +1,21 @@
 ﻿#if !UNITY_EDITOR
 using Comfort.Common;
-using EFT.InventoryLogic;
+using Diz.Jobs;
 using EFT;
-using SPT.Reflection.Patching;
-using System.Reflection;
 using EFT.InputSystem;
-using System;
+using EFT.InventoryLogic;
 using EFT.UI;
 using GameBoyEmulator.CustomEFTData;
+using SPT.Reflection.Patching;
+using System;
 using System.Collections.Generic;
 using System.Linq;
+using System.Reflection;
 
 namespace GameBoyEmulator.Patches
 {
     internal class TranslateCommandHideoutPatch : ModulePatch
     {
-
         protected override MethodBase GetTargetMethod()
         {
             return typeof(HideoutPlayerOwner).GetMethod(nameof(HideoutPlayerOwner.TranslateCommand));
@@ -25,24 +25,21 @@ namespace GameBoyEmulator.Patches
         public static bool PatchPrefix(HideoutPlayerOwner __instance, ECommand command, ref InputNode.ETranslateResult __result)
         {
             HideoutPlayer hideoutPlayer = __instance.HideoutPlayer;
-            
+
             if (hideoutPlayer.HandsController != null && hideoutPlayer.HandsController is CustomUsableItemController customUsableItemController)
             {
-                if (customUsableItemController != null)
+                switch (command)
                 {
-                    switch (command)
-                    {
-                        case ECommand.ExamineWeapon:
-                            customUsableItemController.ExamineWeapon();
-                            break;
-                        case ECommand.ToggleAlternativeShooting:
-                            customUsableItemController.ToggleAim();
-                            __result = InputNode.ETranslateResult.Block;
-                            return false;
-                        case ECommand.Escape:
-                            hideoutPlayer.SetEmptyHands(method_2);
-                            break;
-                    }
+                    case ECommand.ExamineWeapon:
+                        customUsableItemController.ExamineWeapon();
+                        break;
+                    case ECommand.ToggleAlternativeShooting:
+                        customUsableItemController.ToggleAim();
+                        __result = InputNode.ETranslateResult.Block;
+                        return false;
+                    case ECommand.Escape:
+                        hideoutPlayer.SetEmptyHands(method_2);
+                        break;
                 }
             }
 
@@ -57,49 +54,62 @@ namespace GameBoyEmulator.Patches
                     ECommand.SelectFastSlot8 => EBoundItem.Item8,
                     ECommand.SelectFastSlot9 => EBoundItem.Item9,
                     ECommand.SelectFastSlot0 => EBoundItem.Item10,
-                    _ => throw new ArgumentOutOfRangeException() 
+                    _ => throw new ArgumentOutOfRangeException()
                 };
 
-                Item boundItemObj = hideoutPlayer.Inventory.FastAccess.GetBoundItem(boundItem);
+                Item boundItemObj = ResolveLiveBoundItem(hideoutPlayer, boundItem);
 
                 if (boundItemObj is CustomUsableItem)
                 {
-                    ProceedItemGameBoy(hideoutPlayer, boundItemObj);
+                    ProceedItemGameBoy(hideoutPlayer, boundItem, boundItemObj);
                     return false;
                 }
             }
             return true;
         }
 
-        private static async void ProceedItemGameBoy(HideoutPlayer hideoutPlayer, Item boundItemObj)
+        private static async void ProceedItemGameBoy(
+            HideoutPlayer hideoutPlayer,
+            EBoundItem boundItem,
+            Item boundItemObj)
         {
-            ConsoleScreen.LogWarning($"[GameBoy] Original item ID: {boundItemObj.Id}");
-            
-            // DON'T wait for smethod_2 - this orphans the item!
-            // Instead, clone it BEFORE calling smethod_2
-            CustomUsableItem clonedItem = (CustomUsableItem)boundItemObj.CloneItemWithSameId();
-            if (clonedItem == null)
+            if (boundItemObj is not CustomUsableItem gameBoy)
             {
-                ConsoleScreen.LogError($"[GameBoy] Failed to clone item");
                 return;
             }
-            
-            ConsoleScreen.LogWarning($"[GameBoy] Cloned item ID: {clonedItem.Id}");
 
-            await HideoutPlayer.smethod_2(hideoutPlayer.Profile, JobPriorityClass.Immediate);
-            
-            ConsoleScreen.LogWarning($"[GameBoy] After smethod_2, using cloned item");
+            await HideoutPlayer.UpdateHideoutBundles(hideoutPlayer.Profile, JobYieldPriority.Immediate);
 
-            InventoryScreenQuickAccessPanel inventoryScreenQuickAccessPanel = Singleton<CommonUI>.Instance.EftBattleUIScreen.QuickAccessPanel;
-            inventoryScreenQuickAccessPanel.Show(hideoutPlayer.InventoryController, ItemUiContext.Instance);
+            Item liveGameBoy = ResolveLiveBoundItem(hideoutPlayer, boundItem) ?? gameBoy;
+
+            Console.WriteLine(
+                $"[GameBoy] Owner via OriginalInventory | Id={liveGameBoy.Id} | " +
+                $"Address={liveGameBoy.CurrentAddress}");
+
+            InventoryScreenQuickAccessPanel inventoryScreenQuickAccessPanel =
+                Singleton<CommonUI>.Instance.EftBattleUIScreen.QuickAccessPanel;
+
+            inventoryScreenQuickAccessPanel.Show(hideoutPlayer.OriginalInventory, ItemUiContext.Instance);
             inventoryScreenQuickAccessPanel.AnimatedShow(true);
-            
-            if (clonedItem != null && clonedItem.CheckAction(null).Succeeded && !hideoutPlayer.InventoryController.IsChangingWeapon && (!hideoutPlayer.IsInBufferZone || hideoutPlayer.CanManipulateWithHandsInBufferZone))
+
+            var checkResult = liveGameBoy.CheckAction(null);
+
+            Console.WriteLine(
+                $"[GameBoy] CheckAction(null) via OriginalInventory-resolved item | " +
+                $"Succeeded={checkResult.Succeeded}");
+
+            bool canProceed =
+                checkResult.Succeeded &&
+                !hideoutPlayer.OriginalInventory.IsChangingWeapon &&
+                (!hideoutPlayer.IsInBufferZone || hideoutPlayer.CanManipulateWithHandsInBufferZone);
+
+            if (canProceed)
             {
-                TryProceedPatch.ProceedCustomUsableItem(clonedItem, method_131, true);
+                TryProceedPatch.ProceedCustomUsableItem((CustomUsableItem)liveGameBoy, method_131, true);
                 return;
             }
-            hideoutPlayer.SetItemInHands(clonedItem, method_131);
+
+            hideoutPlayer.SetItemInHands(liveGameBoy, method_131);
         }
 
         private static void method_131(Result<IHandsController> result)
@@ -114,14 +124,33 @@ namespace GameBoyEmulator.Patches
             }
         }
 
-        private static void method_2(Result<GInterface198> callback)
+        private static void method_2(Result<IEmptyHandsController> callback)
         {
             Complete(null);
         }
 
         private static void Complete(string error)
         {
+        }
 
+        private static Item ResolveLiveBoundItem(HideoutPlayer hideoutPlayer, EBoundItem boundItem)
+        {
+            Item staleItem = hideoutPlayer.Inventory.FastAccess.GetBoundItem(boundItem);
+            if (staleItem == null)
+            {
+                return null;
+            }
+
+            Item liveItem = hideoutPlayer.OriginalInventory.Inventory
+                .GetPlayerItems()
+                .FirstOrDefault(i => i.Id == staleItem.Id);
+
+            Console.WriteLine(
+                $"[GameBoy] Resolve | StaleId={staleItem.Id} | " +
+                $"FoundInOriginalInventory={liveItem != null} | " +
+                $"StaleAddress={staleItem.CurrentAddress}");
+
+            return liveItem ?? staleItem;
         }
     }
 }

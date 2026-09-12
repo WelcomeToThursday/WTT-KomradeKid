@@ -20,29 +20,27 @@ namespace GameBoyEmulator.Patches
         {
             if (item is CustomUsableItem customItem)
             {
-                Player.Class1344 @class = new Player.Class1344
-                {
-                    completeCallback = completeCallback,
-                    player_0 = KomradeClient.Player
-                };
+                Player.CG_TryProceed1 cg_TryProceed = new Player.CG_TryProceed1();
+                cg_TryProceed.completeCallback = completeCallback;
+                cg_TryProceed.player_0 = __instance;
                 __instance.StopBlindFire();
                 __instance.RemoveLeftHandItem();
-                __instance.method_126();
+                __instance.RaiseHandsChanging();
                 if (!__instance.InventoryController.IsAtReachablePlace(item))
                 {
-                    __instance.SetFirstAvailableItem(@class.completeCallback);
+                    __instance.SetFirstAvailableItem(cg_TryProceed.completeCallback);
                     return false;
                 }
                 
                 Player.MedsController medsController = __instance.HandsController as Player.MedsController;
                 if (medsController != null && !__instance.IsAI)
                 {
-                    medsController.SetOnUsedCallback(new Callback<IOnHandsUseCallback>(Player.Class1318.class1318_0.method_24));
+                    medsController.SetOnUsedCallback(new Callback<IQuickUseItem>(Player.CG_Class1318.CG_Class1318.method_24));
                 }
 
-                Player.Class1345 class2 = new Player.Class1345();
-                class2.class1344_0 = @class;
-                ProceedCustomUsableItem(customItem, class2.class1344_0.completeCallback, scheduled);
+                Player.CG_TryProceed cg_TryProceed2 = new Player.CG_TryProceed();
+                cg_TryProceed2.CG_TryProceed1 = cg_TryProceed;
+                ProceedCustomUsableItem(customItem, cg_TryProceed2.CG_TryProceed1.completeCallback, scheduled);
                 return false;
             }
 
@@ -51,17 +49,17 @@ namespace GameBoyEmulator.Patches
 
         public static void ProceedCustomUsableItem(CustomUsableItem item, Callback<IHandsController> completeCallback, bool scheduled = true)
         {
-            Player.Class1346 @class = new Player.Class1346();
+            Player.CG_ProceedPortableRangeFinder cg_ProceedPortableRangeFinder = new Player.CG_ProceedPortableRangeFinder();
             {
                 completeCallback = completeCallback;
             };
 
             if (KomradeClient.Player is ClientPlayer)
             {
-                KomradeClient.Player.Proceed<ClientCustomUsableItemController>(item, @class.method_0, scheduled);
+                KomradeClient.Player.Proceed<ClientCustomUsableItemController>(item, cg_ProceedPortableRangeFinder.method_0, scheduled);
                 return;
             }
-            KomradeClient.Player.Proceed<CustomUsableItemController>(item, @class.method_1, scheduled);
+            KomradeClient.Player.Proceed<CustomUsableItemController>(item, cg_ProceedPortableRangeFinder.method_1, scheduled);
         }
 
     }
