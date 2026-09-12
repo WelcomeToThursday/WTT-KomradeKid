@@ -12,7 +12,7 @@
         {
           "_name": "Cartridge",
           "_id": "5888956924597752983e182e",
-          "_parent": "gb",
+          "_parent": "67100048a4fad1310ee4ccf5",
           "_props": {
             "filters": [
               {
@@ -30,7 +30,7 @@
         {
           "_name": "Cable",
           "_id": "670422da15a92fe61160e5b5",
-          "_parent": "gb",
+          "_parent": "67100048a4fad1310ee4ccf5",
           "_props": {
             "filters": [
               {

@@ -30,17 +30,17 @@ namespace KomradeKidClientFika.Patches
         }
 
         [PatchPrefix]
-        public static bool PatchPrefix(FikaPlayer __instance, Item item, Callback<GInterface202> callback, bool scheduled)
+        public static bool PatchPrefix(FikaPlayer __instance, Item item, Callback<IUsableItemController> callback, bool scheduled)
         { 
             if (item is CustomUsableItem customItem)
             {
 
                 var handler = new CustomUsableItemControllerHandler(__instance, customItem);
                 Func<CustomUsableItemController> controllerFunc = new(handler.ReturnController);
-                handler.process = new Player.Process<CustomUsableItemController, GInterface202>(
+                handler.process = new Player.Process<CustomUsableItemController, IUsableItemController>(
                     __instance, controllerFunc, customItem, false);
                 handler.confirmCallback = new Action(handler.SendPacket);
-                handler.process.method_0(new(handler.HandleResult), callback, scheduled);
+                handler.process.Proceed(new(handler.HandleResult), callback, scheduled);
                 return false; 
             } 
             return true;
@@ -48,7 +48,7 @@ namespace KomradeKidClientFika.Patches
 
         public static CustomUsableItemController Create(FikaPlayer player, Item item)
         {
-            CustomUsableItemController controller = Player.UsableItemController.smethod_6<CustomUsableItemController>(player, item);
+            CustomUsableItemController controller = Player.UsableItemController.CreateController<CustomUsableItemController>(player, item);
             return controller;
         }
 
@@ -57,7 +57,7 @@ namespace KomradeKidClientFika.Patches
         {
             private readonly FikaPlayer _player = player;
             private readonly Item _item = item;
-            public Player.Process<CustomUsableItemController, GInterface202> process;
+            public Player.Process<CustomUsableItemController, IUsableItemController> process;
             public Action confirmCallback;
 
             internal CustomUsableItemController ReturnController()
@@ -131,7 +131,7 @@ namespace KomradeKidClientFika.Patches
 
         public static CoopClientCustomUsableItemController Create(FikaPlayer player, Item item)
         {
-            CoopClientCustomUsableItemController controller = smethod_6<CoopClientCustomUsableItemController>(player, item);
+            CoopClientCustomUsableItemController controller = CreateController<CoopClientCustomUsableItemController>(player, item);
             controller.player = player;
             return controller;
         }
